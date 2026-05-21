@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Syrreal Watson</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-links">
+            <a href="{{ url_for('main.index') }}"
+               class="nav-link {% if active == 'about' %}active{% endif %}">About</a>
+            <a href="{{ url_for('projects.projects_page') }}"
+               class="nav-link {% if active == 'projects' %}active{% endif %}">Projects</a>
+            <a href="{{ url_for('contact.contact_page') }}"
+               class="nav-link {% if active == 'contact' %}active{% endif %}">Contact</a>
+        </div>
+    </nav>
+
+    <main class="content">
+        {% block content %}{% endblock %}
+    </main>
+</body>
+</html>
