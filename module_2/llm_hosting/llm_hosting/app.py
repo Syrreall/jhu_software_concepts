@@ -114,18 +114,21 @@ _LLM: Llama | None = None
 
 
 def _load_llm() -> Llama:
-    """Download (or reuse) the GGUF file and initialize llama.cpp."""
+    """Load GGUF model from pre-downloaded path or download if needed."""
     global _LLM
     if _LLM is not None:
         return _LLM
 
-    model_path = hf_hub_download(
-        repo_id=MODEL_REPO,
-        filename=MODEL_FILE,
-        local_dir="models",
-        local_dir_use_symlinks=False,
-        force_filename=MODEL_FILE,
-    )
+    # Use pre-downloaded path from worker init if available
+    override = os.getenv("_MODEL_PATH_OVERRIDE")
+    if override and os.path.exists(override):
+        model_path = override
+    else:
+        model_path = hf_hub_download(
+            repo_id=MODEL_REPO,
+            filename=MODEL_FILE,
+            local_dir="models",
+        )
 
     _LLM = Llama(
         model_path=model_path,

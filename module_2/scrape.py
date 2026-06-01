@@ -26,7 +26,7 @@ ROBOTS_URL = f"{BASE_URL}/robots.txt"
 OUTPUT_FILE = "applicant_data.json"
 TARGET_ENTRIES = 30_000
 PER_PAGE = 25
-REQUEST_DELAY = 2.5   # seconds between page requests (polite scraping)
+REQUEST_DELAY = 1.0   # seconds between page requests (polite scraping)
 
 
 # ── robots.txt ─────────────────────────────────────────────────────────────────
@@ -126,7 +126,7 @@ def _normalize_degree(text: str) -> str | None:
     t = (text or "").lower()
     if re.search(r"\bphd\b|\bph\.d\b|\bdoctoral?\b", t):
         return "PhD"
-    if re.search(r"\bmaster\b|\bm\.s\b|\bm\.a\b|\bmeng\b|\bmba\b|\bm\.eng\b|\bmfa\b", t):
+    if re.search(r"\bmasters?\b|\bm\.s\.?\b|\bm\.a\.?\b|\bmeng\b|\bmba\b|\bm\.eng\.?\b|\bmfa\b", t):
         return "Masters"
     return None
 
@@ -134,6 +134,7 @@ def _normalize_degree(text: str) -> str | None:
 def _parse_entry(row) -> dict | None:
     """
     Extract all available fields from a single rendered table row.
+    GradCafe column order: University | Program | Degree | Date Added | Status | Comments
     Returns a structured dict or None if the row is a header or empty.
     """
     # Skip header rows (contain <th> elements)
@@ -148,7 +149,6 @@ def _parse_entry(row) -> dict | None:
     if not raw_text:
         return None
 
-    # Build a flat list of cell texts for positional access
     texts = [c.get_text(separator=" ", strip=True) for c in cells]
 
     # Entry URL — look for a link pointing to a result page
@@ -159,69 +159,76 @@ def _parse_entry(row) -> dict | None:
             entry_url = BASE_URL + href if href.startswith("/") else href
             break
 
-    # --- Core fields (positional, typical GradCafe column order) ---
-    # Column 0: Institution / Program (often combined as "Program, University")
-    program = texts[0] if texts else None
+    # --- Positional extraction based on observed GradCafe column order ---
+    # Actual structure: University | Program+Degree | Date Added | Status | Comments
+    university = texts[0] if len(texts) > 0 else None
 
-    # Column 1: Decision/Status
-    status_raw = texts[1] if len(texts) > 1 else ""
+    # Cell 1 combines program name and degree (e.g. "Bioinformatics Masters")
+    cell1 = texts[1] if len(texts) > 1 else ""
+    degree = _normalize_degree(cell1)
+    # Strip the degree keyword to get the clean program name
+    program_name = re.sub(
+        r"\b(PhD|Ph\.D\.?|Masters?|M\.S\.?|M\.A\.?|M\.Eng\.?|MBA|MFA|MEng|Doctoral)\b",
+        "", cell1, flags=re.I,
+    ).strip().strip(",").strip()
+
+    date_added = texts[2] if len(texts) > 2 else None
+
+    # Status cell often includes the decision date (e.g. "Rejected on May 31")
+    status_raw = texts[3] if len(texts) > 3 else ""
     status = _normalize_status(status_raw)
 
-    # Column 2+: scan remaining cells for term, GPA, GRE, comments, etc.
+    # Pull accept/reject date out of the status string
+    accept_reject_date = None
+    m = re.search(r"(?:on|via email on|via)\s+(.+)", status_raw, re.I)
+    if m:
+        accept_reject_date = m.group(1).strip()
+
+    # Comments — last cell; filter out placeholder GradCafe link text
+    comments_raw = texts[4] if len(texts) > 4 else None
+    comments = None
+    if comments_raw and not re.match(r"^\d*\s*total comments?$", comments_raw, re.I):
+        comments = comments_raw
+
+    # Season / term — scan all cells
     term = None
+    for text in texts:
+        m = re.search(r"\b(Fall|Spring|Summer|Winter)\s+20\d{2}\b", text, re.I)
+        if m:
+            term = m.group(0)
+            break
+
+    # GPA, GRE — scan all cells (may appear in any column depending on entry)
     gpa = None
     gre_total = gre_v = gre_aw = None
-    degree = None
     applicant_type = None
-    comments = None
-    date_added = None
 
-    for text in texts[2:]:
-        # Season / term
-        if not term:
-            m = re.search(r"\b(Fall|Spring|Summer|Winter)\s+20\d{2}\b", text, re.I)
-            if m:
-                term = m.group(0)
-
-        # Date added
-        if not date_added:
-            m = re.search(
-                r"\b(Added on .+?\d{4}|\d{1,2}\s+\w+\s+\d{4}|\w+\s+\d{1,2},?\s+\d{4}|\d{4}-\d{2}-\d{2})\b",
-                text,
-            )
-            if m:
-                date_added = m.group(0)
-
-        # GPA
-        if not gpa and re.search(r"\bGPA\b|\b\d\.\d{2}\b", text, re.I):
+    for text in texts:
+        if not gpa and re.search(r"\bGPA\b|\b[0-3]\.\d{2}\b|4\.0\b", text, re.I):
             gpa = _extract_gpa(text)
-
-        # GRE
         if not gre_total and re.search(r"\bGRE\b", text, re.I):
             gre_total, gre_v, gre_aw = _extract_gre(text)
-
-        # Degree
-        if not degree:
-            degree = _normalize_degree(text)
-
-        # Applicant type
         if not applicant_type:
             if re.search(r"\binternational\b", text, re.I):
                 applicant_type = "International"
             elif re.search(r"\bamerican\b|\bdomestic\b|\bU\.?S\.?\b", text, re.I):
                 applicant_type = "American"
 
-    # Comments are typically in the last cell if not already used
-    if len(texts) > 3:
-        comments = texts[-1]
-
-    # Skip rows that yield nothing useful
-    if not program and not entry_url:
+    # Skip rows with no meaningful content
+    if not university and not entry_url:
         return None
 
+    # Combine program + university for LLM standardization (matches sample_data.json format)
+    program_combined = (
+        f"{program_name}, {university}" if program_name and university else (program_name or university)
+    )
+
     return {
-        "program": program,
+        "program": program_combined,        # combined field for LLM to split
+        "university_raw": university,        # raw university column
+        "program_raw": program_name,         # raw program column
         "status": status,
+        "accept_reject_date": accept_reject_date,
         "term": term,
         "date_added": date_added,
         "url": entry_url,
@@ -232,7 +239,7 @@ def _parse_entry(row) -> dict | None:
         "GRE_V": gre_v,
         "GRE_AW": gre_aw,
         "comments": comments,
-        "raw_text": raw_text,  # preserved for traceability
+        "raw_text": raw_text,
     }
 
 
@@ -262,6 +269,7 @@ def scrape_data(
     target: int = TARGET_ENTRIES,
     delay: float = REQUEST_DELAY,
     output_file: str = OUTPUT_FILE,
+    start_page: int = 1,
 ) -> list[dict]:
     """
     Iterates paginated Grad Cafe survey pages using Selenium + BeautifulSoup.
@@ -274,9 +282,17 @@ def scrape_data(
         raise PermissionError("robots.txt disallows scraping /survey/. Aborting.")
     print("robots.txt check passed — /survey/ is permitted.")
 
+    # Resume from existing data if present
     all_entries: list[dict] = []
+    if start_page > 1:
+        try:
+            all_entries = load_data(output_file)
+            print(f"Resuming from page {start_page} with {len(all_entries)} existing entries.")
+        except FileNotFoundError:
+            pass
+
     driver = _setup_driver()
-    page = 1
+    page = start_page
     consecutive_empty = 0
 
     try:
@@ -311,12 +327,12 @@ def scrape_data(
             else:
                 consecutive_empty = 0
                 all_entries.extend(entries)
-                print(f"[Page {page}] +{len(entries)} entries  →  total {len(all_entries)}")
+                print(f"[Page {page}] +{len(entries)} entries -> total {len(all_entries)}")
 
             # Checkpoint save every 50 pages
             if page % 50 == 0:
                 save_data(all_entries, output_file)
-                print(f"  ↳ Checkpoint: {len(all_entries)} entries written to {output_file}")
+                print(f"  >> Checkpoint: {len(all_entries)} entries written to {output_file}")
 
             page += 1
             time.sleep(delay)  # polite delay between requests
@@ -343,4 +359,7 @@ def load_data(filename: str = OUTPUT_FILE) -> list[dict]:
 
 
 if __name__ == "__main__":
-    scrape_data()
+    import sys
+    # Pass a page number as argument to resume: python scrape.py 1057
+    start = int(sys.argv[1]) if len(sys.argv) > 1 else 1
+    scrape_data(start_page=start)

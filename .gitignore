@@ -10,3 +10,5 @@ build/
 __MACOSX/
 .DS_Store
 .vscode/
+*.gguf
+models/

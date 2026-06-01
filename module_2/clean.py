@@ -102,7 +102,7 @@ def _normalize_degree(degree: str | None) -> str | None:
     t = degree.lower()
     if re.search(r"\bphd\b|\bph\.d\b|\bdoctoral?\b", t):
         return "PhD"
-    if re.search(r"\bmaster\b|\bm\.s\b|\bm\.a\b|\bmeng\b|\bmba\b|\bm\.eng\b|\bmfa\b", t):
+    if re.search(r"\bmasters?\b|\bm\.s\.?\b|\bm\.a\.?\b|\bmeng\b|\bmba\b|\bm\.eng\.?\b|\bmfa\b", t):
         return "Masters"
     return degree.strip()
 
