@@ -1,0 +1,39 @@
+Name: Syrreal Watson | JHED: lwatso28
+Module 3 — Databases: Data Limitations Reflection
+
+================================================================================
+
+Paragraph 1 — Bias and Self-Selection
+
+Grad Cafe data is entirely self-reported by applicants who chose to submit their
+information anonymously. This creates significant selection bias: applicants who
+post tend to be more engaged, more anxious about outcomes, or more likely to
+attend elite programs — meaning the dataset does not represent the full population
+of graduate applicants. For example, the average GRE quantitative score in the
+national 2022-2023 data was 157, yet reported scores on Grad Cafe tend to skew
+higher (~165), suggesting that higher-performing applicants are disproportionately
+represented. Similarly, GPA and GRE fields were missing for nearly all of our
+30,000 entries, indicating that most users either do not provide these metrics or
+that Grad Cafe does not surface them in the standard listing view. This missingness
+is not random — it is likely correlated with applicant confidence, program
+prestige, or outcome, making any averages we compute unreliable as population
+estimates.
+
+================================================================================
+
+Paragraph 2 — Reliability and Representativeness
+
+Beyond selection bias, the data suffers from issues of reliability and
+standardization. Program names, university names, and statuses are entered freely
+by users with no validation, resulting in inconsistencies such as "JHU,"
+"Johns Hopkins," and "John Hopkins" all referring to the same institution. Our LLM
+standardization step partially addressed this, but abbreviations, misspellings,
+and ambiguous entries remain. Additionally, the start term field (Fall/Spring/Year)
+was not captured in our scrape because Grad Cafe only surfaces it on individual
+entry pages, not the summary table — meaning any term-based analysis is limited.
+Together, these limitations mean that while Grad Cafe data is valuable for
+identifying broad trends in graduate admissions, it should not be treated as a
+representative or complete dataset. Any conclusions drawn — such as acceptance
+rates or average GPAs — must be interpreted cautiously, with the understanding
+that the data reflects only a vocal, self-selected subset of the true applicant
+pool.
