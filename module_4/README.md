@@ -4,8 +4,8 @@ End-to-end tested, documented Grad Cafe analytics service built with Flask + Pos
 
 ## Quick links
 
-- **Live docs:** _(add your Read the Docs URL here after publishing)_
-- **GitHub:** _(add SSH URL here)_
+- **Live docs:** https://syrreal-jhu-software-concepts.readthedocs.io/en/latest/
+- **GitHub:** git@github.com:Syrreall/jhu_software_concepts.git
 
 ---
 
