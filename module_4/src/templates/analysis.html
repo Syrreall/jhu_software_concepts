@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Grad Cafe Data Analysis</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
+</head>
+<body>
+
+<nav class="navbar">
+    <span class="nav-title">Grad Cafe Data Analysis</span>
+    <div class="nav-buttons">
+        <button class="btn btn-secondary" id="updateBtn"
+                data-testid="update-analysis-btn"
+                onclick="updateAnalysis()">
+            Update Analysis
+        </button>
+        <button class="btn btn-primary" id="pullBtn"
+                data-testid="pull-data-btn"
+                onclick="pullData()">
+            Pull Data
+        </button>
+    </div>
+</nav>
+
+<div class="content">
+
+    {% if scraping %}
+    <div class="alert">A data pull is currently in progress. Results will update when complete.</div>
+    {% endif %}
+
+    <div class="info-box">
+        <strong>Pull Data</strong> — Scrapes new entries from Grad Cafe and adds them to the database.<br>
+        <strong>Update Analysis</strong> — Refreshes the query results with the latest data. Returns 409 while a pull is running.
+    </div>
+
+    <h1>Grad School Admissions Analysis</h1>
+    <p class="subtitle">Based on {{ r.q1_fall_2026_count | default('—') }} Fall 2026 entries and 30,000+ total records scraped from The Grad Cafe.</p>
+
+    <div class="grid">
+
+        <div class="card">
+            <div class="card-label">Q1 — Fall 2026 Entries</div>
+            <div class="card-value" data-testid="q1-value">Answer: {{ r.q1_fall_2026_count }}</div>
+        </div>
+
+        <div class="card">
+            <div class="card-label">Q2 — % International Students</div>
+            <div class="card-value" data-testid="q2-value">Answer: {{ r.q2_pct_international | pct }}</div>
+        </div>
+
+        <div class="card">
+            <div class="card-label">Q5 — % Accepted (Fall 2026)</div>
+            <div class="card-value" data-testid="q5-value">Answer: {{ r.q5_pct_accepted_fall2026 | pct }}</div>
+        </div>
+
+        <div class="card">
+            <div class="card-label">Q7 — JHU Masters CS Applicants</div>
+            <div class="card-value" data-testid="q7-value">Answer: {{ r.q7_jhu_masters_cs }}</div>
+        </div>
+
+    </div>
+
+    <h2>Academic Metrics (Q3)</h2>
+    <table>
+        <thead>
+            <tr><th>Metric</th><th>Average (among entries with data)</th></tr>
+        </thead>
+        <tbody>
+            <tr><td>GPA</td><td>Answer: {{ r.q3_avg_gpa or '—' }}</td></tr>
+            <tr><td>GRE Quantitative</td><td>Answer: {{ r.q3_avg_gre or '—' }}</td></tr>
+            <tr><td>GRE Verbal</td><td>Answer: {{ r.q3_avg_gre_v or '—' }}</td></tr>
+            <tr><td>GRE Analytical Writing</td><td>Answer: {{ r.q3_avg_gre_aw or '—' }}</td></tr>
+        </tbody>
+    </table>
+
+    <h2>Fall 2026 Deep Dive (Q4, Q5, Q6)</h2>
+    <table>
+        <thead>
+            <tr><th>Question</th><th>Result</th></tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>Avg GPA — American students (Fall 2026)</td>
+                <td>Answer: {{ r.q4_avg_gpa_american_fall2026 or '—' }}</td>
+            </tr>
+            <tr>
+                <td>% Accepted entries (Fall 2026)</td>
+                <td>Answer: {{ r.q5_pct_accepted_fall2026 | pct }}</td>
+            </tr>
+            <tr>
+                <td>Avg GPA — Accepted applicants (Fall 2026)</td>
+                <td>Answer: {{ r.q6_avg_gpa_accepted_fall2026 or '—' }}</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <h2>Top School PhD CS Acceptances in 2026 (Q8 vs Q9)</h2>
+    <p class="note">Schools: Georgetown University, MIT, Stanford University, Carnegie Mellon University</p>
+    <table>
+        <thead>
+            <tr><th>Field Used</th><th>Count</th></tr>
+        </thead>
+        <tbody>
+            <tr><td>Raw scraped fields (Q8)</td><td>Answer: {{ r.q8_top_school_phd_cs_2026 }}</td></tr>
+            <tr><td>LLM-generated fields (Q9)</td><td>Answer: {{ r.q9_top_school_phd_cs_2026_llm }}</td></tr>
+        </tbody>
+    </table>
+
+    <h2>Top 5 Programs Applied To (Q10 — Custom)</h2>
+    <table>
+        <thead>
+            <tr><th>Program</th><th>Applications</th></tr>
+        </thead>
+        <tbody>
+            {% for p in r.q10_top_programs %}
+            <tr><td>{{ p.program }}</td><td>{{ p.count }}</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <h2>Acceptance Rate by Degree Type (Q11 — Custom)</h2>
+    <table>
+        <thead>
+            <tr><th>Degree</th><th>Total</th><th>Accepted</th><th>Rate</th></tr>
+        </thead>
+        <tbody>
+            {% for d in r.q11_acceptance_by_degree %}
+            <tr>
+                <td>{{ d.degree }}</td>
+                <td>{{ d.total }}</td>
+                <td>{{ d.accepted }}</td>
+                <td>Answer: {{ d.rate | pct }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+</div>
+
+<script>
+function pullData() {
+    document.getElementById('pullBtn').disabled = true;
+    document.getElementById('pullBtn').textContent = 'Pulling...';
+    fetch('/pull-data', { method: 'POST' })
+        .then(r => r.json())
+        .then(data => {
+            if (data.busy) {
+                alert('A pull is already in progress. Please wait.');
+            } else {
+                alert('Pull started! Refresh the page in a moment.');
+            }
+            document.getElementById('pullBtn').textContent = 'Pull Data';
+            document.getElementById('pullBtn').disabled = false;
+        });
+}
+
+function updateAnalysis() {
+    fetch('/update-analysis', { method: 'POST' })
+        .then(r => r.json())
+        .then(data => {
+            if (data.busy) {
+                alert('A pull is in progress. Try again shortly.');
+            } else {
+                location.reload();
+            }
+        });
+}
+</script>
+
+</body>
+</html>
